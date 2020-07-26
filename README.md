@@ -1,2 +1,3 @@
 # SERIL: Noise Adaptive Speech Enhancement using Regularization based Incremental Learning - Official PyTorch Implementation
-Our paper can be found [here](https://arxiv.org/abs/2005.11760)
+Numerous noise adaptation techniques have been proposed to address the mismatch problem in speech enhancement by fine-tuning deep-learning-based models. However, adaptation to a target domain can lead to catastrophic forgetting of the previously learnt noise environments. Under the situation of re-visiting previous noise environments, our work focuses on building a noise adaptive speech enhancement technique with an incremental strategy to reduce catastrophic forgetting problem. Our paper can be found [here](https://arxiv.org/abs/2005.11760)
+
