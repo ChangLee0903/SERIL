@@ -1,0 +1,11 @@
+# pytorch
+torch
+torchvision
+
+# data
+numpy
+scipy
+
+# eval
+pypesq
+pystoi
