@@ -1,27 +1,50 @@
 import torch
 import torch.nn as nn
+from preprocess import OnlinePreprocessor
+channel = 0
+feat_list = [
+    {'feat_type': 'complx', 'channel': channel},
+    {'feat_type': 'linear', 'channel': channel},
+    {'feat_type': 'phase', 'channel': channel}
+]
+
 
 class LSTM(nn.Module):
-    def __init__(self, input_size=201, hidden_size=201, num_layers=3, bidirectional=False):
+    def __init__(self, loss_func=None, input_size=257, hidden_size=257, num_layers=3, bidirectional=False):
         super(LSTM, self).__init__()
         self.lstm = nn.LSTM(input_size=input_size, hidden_size=hidden_size,
                             num_layers=num_layers, batch_first=True, bidirectional=bidirectional)
-        self.output_layer = nn.Sequential(
+        self.loss_func = loss_func
+        self.preprocessor = OnlinePreprocessor(feat_list=feat_list)
+        self.scaling_layer = nn.Sequential(
             nn.Linear(hidden_size, input_size), nn.ReLU())
         self.init_weights()
         self.bidirectional = bidirectional
 
     def init_weights(self):
         for name, param in self.named_parameters():
-            if 'weight_ih' in name or 'output_layer.0.weight' in name:
+            if 'weight_ih' in name or 'scaling_layer.0.weight' in name:
                 nn.init.xavier_uniform_(param.data)
             elif 'weight_hh' in name:
                 nn.init.orthogonal_(param.data)
             elif 'bias' in name:
                 nn.init.constant_(param.data, 0)
 
-    def forward(self, features, linear_tar, phase_inp):
-        features, _ = self.lstm(features.transpose(1, 2))
-        features = self.output_layer(features).transpose(1, 2)
+    def transform(self, src, tar=None):
+        _, src_linears, src_phases = self.preprocessor(src)
+        pred_linears, _ = self.lstm(src_linears)
+        pred_linears = self.scaling_layer(pred_linears)
+        if tar is not None:
+            _, tar_linears, _ = self.preprocessor(tar)
+            return pred_linears, tar_linears
+        else:
+            return pred_linears, src_phases
 
-    #     return torch.clamp(x_mag, min=0, max=256), y_mag
+    def infer(self, src):
+        pred_linears, src_phases = self.transform(src)
+        return self.preprocessor.istft(linears=pred_linears, phases=src_phases, length=src.shape[-1])
+
+    def forward(self, src, tar):
+        pred_linears, tar_linears = self.transform(src, tar)
+        return self.loss_func(pred_linears.flatten(start_dim=1).contiguous(),
+                              tar_linears.flatten(start_dim=1).contiguous())

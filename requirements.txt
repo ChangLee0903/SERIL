@@ -1,6 +1,7 @@
 # pytorch
 torch >= 1.6.0
 torchvision
+torchaudio
 
 # data
 numpy >= 1.16.4
@@ -10,3 +11,4 @@ librosa
 # eval
 pypesq
 pystoi
+asteroid

@@ -1,0 +1,34 @@
+dataloader:
+  batch_size: 6                                         # training batch size, 12 for pre-train, 6 for cpc exp
+  eval_batch_size: 12
+
+preprocessor:
+  input_channel: 0
+  target_channel: 1
+  
+  # feat_type: complx, linear, phase, mel, mfcc
+  baseline:
+    feat_type: linear
+    log: False
+    delta: 0
+    cmvn: False
+
+runner:
+  learning_rate: 4.0e-3                                 # Learning rate for opt: ['4e-3' for fine-tune, '4e-3' for regualr downstream task training]
+  warmup_proportion: 0.07                               # Proportion of training to perform linear rate warmup.
+  gradient_clipping: 1.0                                # Maximum gradient norm
+  epochs: 100                                            # total steps for training, a step is a batch of update
+  log_step: 100                                          # log training status every this amount of training steps
+  eval_step: 1800                                         # evaluate every this amount of training steps
+  max_keep: 10                                           # maximum number of model ckpt to keep during training
+  loss: si_sdr                                        # Scale-Invariant Signal Distortion Ratio
+  metrics: [stoi, estoi, pesq]
+
+dataset:
+  dns: [
+    '/home/leo/d/speech-enhancement/DNS-Challenge/',
+  ]
+  dns_test: [
+    '/home/leo/d/speech-enhancement/DNS-Challenge/datasets/test_set/synthetic/no_reverb/',
+  ]
+    

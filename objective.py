@@ -6,7 +6,7 @@ import scipy
 from scipy.signal.windows import hann as hanning
 from torch import Tensor
 
-EPS = np.finfo("float").eps
+# EPS = np.finfo("float").eps
 hann = torch.Tensor(scipy.hanning(258)[1:-1])
 PAD_SIZE = 27
 
@@ -346,17 +346,27 @@ class Estoi(Stoi):
         y_n = self.row_col_normalize(y_segments)
         return -torch.sum(x_n * y_n / self.N) / x_n.shape[0]
 
-
+EPS = 1e-8
 class SI_SDR(nn.Module):
     def __init__(self):
         super().__init__()
 
     def forward(self, src, tar):
-        src = src.reshape(-1, src.shape[1] * src.shape[2])
-        tar = tar.reshape(-1, tar.shape[1] * tar.shape[2])
-
+        src = src.flatten(start_dim=1).contiguous()
+        tar = tar.flatten(start_dim=1).contiguous()
         alpha = torch.sum(src * tar, dim=1) / torch.sum(tar * tar, dim=1)
         ay = alpha.unsqueeze(1) * tar
         norm = torch.sum((ay - src) * (ay - src), dim=1) + EPS
-        loss = -10 * torch.log10(torch.sum(ay * ay, dim=1) / norm)
+        loss = -10 * torch.log10(torch.sum(ay * ay, dim=1) / norm + EPS)
         return loss.mean()
+
+from asteroid.losses.sdr import SingleSrcNegSDR
+sdr1 = SingleSrcNegSDR("sisdr", zero_mean=False)
+sdr2 = SI_SDR()
+for _ in range(20):
+    targets = torch.randn(10, 32000)
+    estimates = torch.randn(10, 32000)
+    # estimates = estimates * 0.7 + targets
+    print('tool:', sdr1(estimates, targets))
+    print('mine:', sdr2(estimates, targets))
+    print('-----------------------')
