@@ -1,19 +1,8 @@
 import os
-from librosa import load
 import numpy as np
-import librosa
-import scipy
-import torchaudio
-from torchaudio.transforms import Spectrogram
 from torchaudio.functional import magphase
 from functools import partial
 import torch
-
-
-def read(data, sr=16000):
-    data, sr = load(data, sr=sr)
-    return data / np.abs(data).max(), sr
-
 
 def adnoise(speech_data, noise_data, SNR):
     noise_length = noise_data.shape[0]
@@ -23,10 +12,9 @@ def adnoise(speech_data, noise_data, SNR):
         dup_num = np.ceil(speech_length / noise_length).astype(int)
         noise_data = np.tile(noise_data, dup_num)
         noise_length = noise_data.shape[0]
-
+    
     start = np.random.randint(0, noise_length - speech_length, 1)[0]
-    end = start + speech_length
-    noise_data = noise_data[start:end]
+    noise_data = noise_data[start : start + speech_length]
 
     SNR_exp = 10.0**(SNR / 10.0)
     speech_var = np.dot(speech_data, speech_data)
@@ -53,7 +41,7 @@ class OnlinePreprocessor(torch.nn.Module):
         self._stft = partial(torch.stft, **self._win_args, **self._stft_args)
         self._istft = partial(
             torch.istft, **self._win_args, **self._istft_args)
-        self._magphase = partial(torchaudio.functional.magphase, power=2)
+        self._magphase = partial(magphase, power=2)
 
         self.feat_list = feat_list
         self.register_buffer('_pseudo_wav', torch.randn(
@@ -147,6 +135,3 @@ class OnlinePreprocessor(torch.nn.Module):
         assert torch.allclose(wavs.select(dim=-2, index=channel2),
                               self.istft(linears=linears, phases=phases, length=16000), atol=epsilon)
         print('[Test passed] stft -> istft')
-
-# model = OnlinePreprocessor()
-# model.test_istft()

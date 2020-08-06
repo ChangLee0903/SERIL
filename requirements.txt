@@ -12,3 +12,4 @@ librosa
 pypesq
 pystoi
 asteroid
+tqdm
