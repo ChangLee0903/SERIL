@@ -11,18 +11,6 @@ def read(data, normalize=False, sr=16000):
         data /= np.abs(data).max()
     return data, sr
 
-
-def collate_fn(samples):
-    niy_samples = [s[0] for s in samples]
-    cln_samples = [s[1] for s in samples]
-    lengths = [len(s[0]) for s in samples]
-    niy_samples = torch.nn.utils.rnn.pad_sequence(
-        niy_samples, batch_first=True)
-    cln_samples = torch.nn.utils.rnn.pad_sequence(
-        cln_samples, batch_first=True)
-    return lengths, niy_samples.transpose(-1, -2).contiguous(), cln_samples.transpose(-1, -2).contiguous()
-
-
 class SpeechDataset(torch.utils.data.Dataset):
     def __init__(self, clean_path, noisy_path, sampling_rate=16000):
         self.sampling_rate = sampling_rate

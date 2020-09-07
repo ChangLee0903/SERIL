@@ -1,30 +1,32 @@
-dataloader:
-  batch_size: 32                                      # training batch size, 12 for pre-train, 6 for cpc exp
-  eval_batch_size: 12
-
 preprocessor:
   input_channel: 0
   target_channel: 0
   
 train:
   learning_rate: 1e-3                                # Learning rate for opt: ['4e-3' for fine-tune, '4e-3' for regualr downstream task training]
-  epochs: 300                                            # total steps for training, a step is a batch of update
-  log_step: 100                                          # log training status every this amount of training steps
-  eval_step: 100                                         # evaluate every this amount of training steps
-  max_keep: 10                                           # maximum number of model ckpt to keep during training
-  loss: si_sdr                                        # Scale-Invariant Signal Distortion Ratio
+  epochs: 300                                        # total steps for training, a step is a batch of update
+  log_step: 100                                      # log training status every this amount of training steps
+  eval_step: 300                                     # evaluate every this amount of training steps
+  max_keep: 10                                       # maximum number of model ckpt to keep during training
+  loss: si_sdr                                       # Scale-Invariant Signal Distortion Ratio
+  gradient_clipping: 1e-0                            # Maximum gradient norm
   strategies:
     ewc: 0.5
     si: 0.5
-  metrics: [stoi, estoi, pesq]
+ 
+eval:
+  n_jobs: 2
+  metrics: [sisdr, stoi, pypesq]
 
 dataset:
   train: 
+    batch_size: 1
     noisy:
       ['../train/noisy_T0']
     clean:
       ['../train/clean_T0']
   dev: 
+    batch_size: 32
     noisy:
       ['../dev/noisy_T0']
     clean:
