@@ -27,6 +27,7 @@ def evaluate(config, dataloader, model):
 
     loss_sum = 0
     oom_counter = 0
+    n_sample = 0
     metrics = [eval(f'{m}_eval') for m in config['eval']['metrics']]
     scores_sum = torch.zeros(len(metrics))
 
@@ -36,15 +37,16 @@ def evaluate(config, dataloader, model):
                 lengths, niy_audio, cln_audio = lengths.to(
                     device), niy_audio.to(device), cln_audio.to(device)
 
-                enh_audio = model.infer(niy_audio)
-                loss = model(lengths, niy_audio, cln_audio).item()
-                loss_sum += loss
-
                 # split batch into list of utterances and duplicate N_METRICS times
+                enh_audio = model.infer(niy_audio)
                 batch_size = len(enh_audio)
                 enh_audio_list = enh_audio.detach().cpu().chunk(batch_size) * len(metrics)
                 cln_audio_list = cln_audio.detach().cpu().chunk(batch_size) * len(metrics)
                 lengths_list = lengths.detach().cpu().tolist() * len(metrics)
+
+                # compute loss
+                loss = model(lengths, niy_audio, cln_audio).item()
+                loss_sum += loss * batch_size
 
                 # prepare metric function for each utterance in the duplicated list
                 ones = torch.ones(batch_size).long().unsqueeze(
@@ -56,11 +58,13 @@ def evaluate(config, dataloader, model):
 
                 def calculate_metric(length, predicted, target, metric_fn):
                     return metric_fn(predicted.squeeze()[:length], target.squeeze()[:length])
-    
-                scores = Parallel(n_jobs=config['eval']['n_jobs'])(delayed(calculate_metric)(l, p, t, f) for l, p, t, f in zip(lengths_list, enh_audio_list, cln_audio_list, metric_fns))
+
+                scores = Parallel(n_jobs=config['eval']['n_jobs'])(delayed(calculate_metric)(
+                    l, p, t, f) for l, p, t, f in zip(lengths_list, enh_audio_list, cln_audio_list, metric_fns))
                 scores = torch.FloatTensor(scores).view(
-                    len(metrics), batch_size).mean(dim=1)
+                    len(metrics), batch_size).sum(dim=1)
                 scores_sum += scores
+                n_sample += batch_size
 
             except RuntimeError as e:
                 if not 'CUDA out of memory' in str(e):
@@ -71,7 +75,6 @@ def evaluate(config, dataloader, model):
                 oom_counter += 1
                 torch.cuda.empty_cache()
 
-    n_sample = len(dataloader)
     loss_avg = loss_sum / n_sample
     scores_avg = scores_sum / n_sample
 
@@ -87,8 +90,10 @@ def train(arg, config, logdir, model, optimizer, reg=None):
     log = SummaryWriter(logdir)
 
     for i in range(len(config['dataset']['train']['noisy'])):
-        train_loader = get_dataloader(arg, config['dataset']['train'], i)
-        dev_loader = get_dataloader(arg, config['dataset']['dev'], i)
+        train_loader = get_dataloader(arg, config['dataset']['train']['noisy'][i],
+                                      config['dataset']['train']['clean'][i], config['train']['batch_size'])
+        dev_loader = get_dataloader(arg, config['dataset']['dev']['noisy'][i],
+                                    config['dataset']['dev']['clean'][i], config['eval']['batch_size'])
 
         loss_sum = 0
         global_step = 1
@@ -110,24 +115,19 @@ def train(arg, config, logdir, model, optimizer, reg=None):
                     loss.backward()
                     loss_sum += loss.item()
 
-                    # # gradient clipping
-                    # paras = list(model.parameters())
-                    # grad_norm = torch.nn.utils.clip_grad_norm_(
-                    #     paras, config['train']['gradient_clipping'])
-                   
+                    # gradient clipping
+                    paras = list(model.parameters())
+                    grad_norm = torch.nn.utils.clip_grad_norm_(
+                        paras, config['train']['gradient_clipping'])
+
                     # update parameters
-                    # if math.isnan(grad_norm) or math.isinf(grad_norm):
-                    #     print(
-                    #         '[Runner] - Error : grad norm is nan/inf at step ' + str(self.global_step))
-                    # else:
-                    optimizer.step()
+                    if math.isnan(grad_norm) or math.isinf(grad_norm):
+                        print(
+                            '[Runner] - Error : grad norm is nan/inf at step ' + str(self.global_step))
+                    else:
+                        optimizer.step()
+
                     optimizer.zero_grad()
-                    
-                    with torch.no_grad():
-                        enh_audio = model.infer(niy_audio[:1]).squeeze().cpu()[:lengths[0]]
-                        niy_audio_ = niy_audio[:1].squeeze().cpu()[:lengths[0]]
-                        cln_audio_ = cln_audio[:1].squeeze().cpu()[:lengths[0]]
-                        print('stoi', stoi_eval(src=niy_audio_, tar=cln_audio_), stoi_eval(src=enh_audio, tar=cln_audio_), loss.item())
 
                     # log process
                     if global_step % int(config['train']['log_step']) == 0:
@@ -137,28 +137,29 @@ def train(arg, config, logdir, model, optimizer, reg=None):
                         loss_sum = 0
 
                     # evaluate and save the best
-                    # if global_step != 0 and global_step % int(config['train']['eval_step']) == 0:
-                    #     print(f'[Runner] - Evaluating on development set')
-                    #     loss, metrics = evaluate(config, dev_loader, model)
-                    #     print(loss, metrics)
-                    #     split = 'dev'
-                    #     log.add_scalar(f'{split}_si-sdr',
-                    #                    loss.item(), global_step)
-                    #     log.add_scalar(f'{split}_stoi',
-                    #                    metrics[0].item(), global_step)
-                    #     log.add_scalar(f'{split}_estoi',
-                    #                    metrics[1].item(), global_step)
-                    #     log.add_scalar(f'{split}_pesq',
-                    #                    metrics[2].item(), global_step)
-                    #     print(loss, metrics)
-                    #         if (metrics > metrics_best[split]).sum() > 0:
-                    #             metrics_best[split] = torch.max(
-                    #                 metrics, metrics_best[split])
-                    #             print('[Runner] - Saving new best model')
-                    #             save_model(save_best=f'best_{split}')
-
-                    #     if dev_loader['dev'] is not None:
-                    #         evaluate('dev')
+                    if global_step != 0 and global_step % int(config['train']['eval_step']) == 0:
+                        print(f'[Runner] - Evaluating on development set')
+                        loss, scores = evaluate(config, dev_loader, model)
+                        log.add_scalar('dev_loss', loss, global_step)
+                        for score, metric_name in zip(scores, config['eval']['metrics']):
+                            log.add_scalar(f'dev_{metric_name}', score.item(), global_step)
+                            # print(f'dev_{metric_name}', score.item())
+                        # # print(loss, metrics)
+                        # split = 'dev'
+                        # log.add_scalar(f'{split}_si-sdr',
+                        #                loss.item(), global_step)
+                        # log.add_scalar(f'{split}_stoi',
+                        #                metrics[0].item(), global_step)
+                        # log.add_scalar(f'{split}_estoi',
+                        #                metrics[1].item(), global_step)
+                        # log.add_scalar(f'{split}_pesq',
+                        #                metrics[2].item(), global_step)
+                        # print(loss, metrics)
+                        #     if (metrics > metrics_best[split]).sum() > 0:
+                        #         metrics_best[split] = torch.max(
+                        #             metrics, metrics_best[split])
+                        #         print('[Runner] - Saving new best model')
+                        #         save_model(save_best=f'best_{split}')
 
                 except RuntimeError as e:
                     if not 'CUDA out of memory' in str(e):
@@ -182,7 +183,7 @@ if __name__ == "__main__":
                         help='Name of current experiment.')
     parser.add_argument('--n_jobs', default=0, type=int)
     parser.add_argument(
-        '--do', choices=['pretrain', 'adaptation'], default='pretrain', type=str)
+        '--do', choices=['pretrain', 'adapt', 'test'], default='pretrain', type=str)
     parser.add_argument(
         '--model', choices=['LSTM', 'Residual', 'IRM'], default='Residual', type=str)
 
@@ -199,10 +200,13 @@ if __name__ == "__main__":
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
 
-    config = yaml.load(open(args.config, 'r'), Loader=yaml.FullLoader)
+    # clean log files
     shutil.rmtree(args.logdir)
     os.makedirs(args.logdir)
-
+    
+    # load configure
+    config = yaml.load(open(args.config, 'r'), Loader=yaml.FullLoader)
+    
     if config['train']['loss'] == 'si_sdr':
         loss_func = SingleSrcNegSDR("sisdr", zero_mean=False,
                                     reduction='mean')

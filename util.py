@@ -36,7 +36,7 @@ def save_model(self, save_type=None):
     torch.save(all_states, model_path)
 
 
-def get_dataloader(args, config, idx):
+def get_dataloader(args, noisy_list, clean_list, batch_size):
     def collate_fn(samples):
         niy_samples = [s[0] for s in samples]
         cln_samples = [s[1] for s in samples]
@@ -48,10 +48,7 @@ def get_dataloader(args, config, idx):
             cln_samples, batch_first=True)
         return lengths, niy_samples.transpose(-1, -2).contiguous(), cln_samples.transpose(-1, -2).contiguous()
 
-    noisy_list = config['noisy'][idx]
-    clean_list = config['clean'][idx]
-
     dataloader = torch.utils.data.DataLoader(SpeechDataset(
-            noisy_list, clean_list), config['batch_size'], collate_fn=collate_fn, num_workers=args.n_jobs, shuffle=True)
+            noisy_list, clean_list), batch_size, collate_fn=collate_fn, num_workers=args.n_jobs, shuffle=True)
 
     return dataloader

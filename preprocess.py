@@ -81,6 +81,7 @@ class OnlinePreprocessor(torch.nn.Module):
         complx = complx.reshape(shape[:-1] + complx.shape[-3:])
         # complx: (*, channel_size, feat_dim, max_len, 2)
         linear, phase = self._magphase(complx)
+        linear = linear.sqrt()
         complx = complx.transpose(-1, -2).reshape(*
                                                   linear.shape[:2], -1, linear.size(-1))
         # complx, linear, phase: (*, channel_size, feat_dim, max_len)
@@ -105,6 +106,7 @@ class OnlinePreprocessor(torch.nn.Module):
         # linears, phases: (*, max_feat_len, n_freq)
 
         if complxs is None:
+            linears = linears.pow(2)
             linears, phases = self._transpose_list([linears, phases])
             complxs = linears.pow(1/linear_power).unsqueeze(-1) * \
                 torch.stack([phases.cos(), phases.sin()], dim=-1)
