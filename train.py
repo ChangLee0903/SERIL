@@ -5,23 +5,36 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import math
 from util import get_dataloader
-from evaluation import evaluate
+from eval import evaluate
 
 warnings.filterwarnings("ignore")
 OOM_RETRY_LIMIT = 10
 
 
-def train_all(args, config, model, lifelong_agent=None, start=0):
+def pretrain(args, config, model, lifelong_agent):
+    save_dir = f'{args.logdir}/pretrain/'
+    log = SummaryWriter(save_dir)
+    train_loader = get_dataloader(args.n_jobs, config['dataset']['train']['noisy'][0],
+                                  config['dataset']['train']['clean'][0], config['train']['batch_size'], True)
+
+    dev_loader = get_dataloader(args.n_jobs, config['dataset']['dev']['noisy'][0],
+                                config['dataset']['dev']['clean'][0], config['eval']['batch_size'])
+
+    train(args, config, log, train_loader,
+          dev_loader, model, lifelong_agent)
+
+    torch.save(model.state_dict(), f'{save_dir}/{args.model}_model_T0.pth')
+    lifelong_agent.update_weights(model, train_loader)
+    torch.save(lifelong_agent.state_dict(),
+               f'{save_dir}/{args.model}_synapses_T0.pth')
+    log.close()
+
+def adapt(args, config, model, lifelong_agent=None):
     log = SummaryWriter(args.logdir)
-    save_dir = f'{args.logdir}/model'
+    save_dir = f'{args.logdir}/'
     os.makedirs(save_dir, exist_ok=True)
 
-    for i in range(start, len(config['dataset']['train']['noisy'])):
-        # if os.path.isfile(f'{save_dir}/model_T{i-1}.pth'):
-        #     model.load_state_dict(torch.load(f'{save_dir}/model_T{i-1}.pth'))
-        #     if lifelong_agent is not None and os.path.isfile(f'{save_dir}/synapses_T{i-1}.pth'):
-        #         lifelong_agent.load_state_dict(torch.load(f'{save_dir}/synapses_T{i-1}.pth'))
-
+    for i in range(1, len(config['dataset']['train']['noisy'])):
         train_loader = get_dataloader(args.n_jobs, config['dataset']['train']['noisy'][i],
                                       config['dataset']['train']['clean'][i], config['train']['batch_size'], True)
         dev_loader = get_dataloader(args.n_jobs, config['dataset']['dev']['noisy'][i],
@@ -29,13 +42,12 @@ def train_all(args, config, model, lifelong_agent=None, start=0):
 
         train(args, config, log, train_loader,
               dev_loader, model, lifelong_agent)
-        torch.save(model.state_dict(), f'{save_dir}/model_T{i}.pth')
+        torch.save(model.state_dict(), f'{save_dir}/{args.model}_model_T{i}.pth')
 
         if lifelong_agent is not None:
             lifelong_agent.update_weights(model, train_loader)
             torch.save(lifelong_agent.state_dict(),
-                       f'{save_dir}/synapses_T{i}.pth')
-
+                       f'{save_dir}/{args.model}_synapses_T{i}.pth')
     log.close()
 
 
@@ -65,7 +77,7 @@ def train(args, config, log, train_loader, dev_loader, model, lifelong_agent=Non
             try:
                 lengths, niy_audio, cln_audio = lengths.to(
                     device), niy_audio.to(device), cln_audio.to(device)
-
+                
                 # compute loss
                 loss = model(lengths, niy_audio, cln_audio)
                 loss_sum += loss.item()
@@ -99,8 +111,7 @@ def train(args, config, log, train_loader, dev_loader, model, lifelong_agent=Non
                     loss_sum = 0
 
                 # evaluate and save the best
-                if (global_step != 0 and global_step % int(config['train']['eval_step']) == 0) or \
-                        global_step == total_steps:
+                if (global_step != 0 and global_step % int(config['train']['eval_step']) == 0):
                     print(f'[Runner] - Evaluating on development set')
                     loss, scores = evaluate(args, config, dev_loader, model)
                     log.add_scalar('dev_loss', loss, global_step)

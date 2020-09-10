@@ -6,7 +6,7 @@ import numpy as np
 import random
 
 import torch
-from train import train_all
+from train import pretrain, adapt
 from util import feat_list
 from regularizer import LifeLongAgent
 from preprocess import OnlinePreprocessor
@@ -24,7 +24,7 @@ def main():
         '--do', choices=['seril', 'finetune', 'test'], default='seril', type=str)
     parser.add_argument(
         '--model', choices=['LSTM', 'Residual', 'IRM'], default='LSTM', type=str)
-
+    
     # Options
     parser.add_argument(
         '--config', default='config/config.yaml', required=False)
@@ -38,10 +38,8 @@ def main():
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
 
-    # clean log files
-    if os.path.exists(args.logdir):
-        shutil.rmtree(args.logdir)
-    os.makedirs(args.logdir)
+    # build log directory
+    os.makedirs(args.logdir, exist_ok=True)
 
     # load configure
     config = yaml.load(open(args.config, 'r'), Loader=yaml.FullLoader)
@@ -56,18 +54,35 @@ def main():
     preprocessor = OnlinePreprocessor(feat_list=feat_list).to(device)
     model = eval(f'{args.model}(loss_func, preprocessor)').to(device)
 
-    if args.do == 'seril':
+    if args.do in ['seril', 'finetune']:
         assert len(config['dataset']['train']['clean']) == len(
             config['dataset']['train']['noisy']) and len(config['dataset']['train']['clean']) >= 1
-        lifelong_agent = LifeLongAgent(
-            model, strategies=config['train']['strategies'])
-        train_all(args, config, model, lifelong_agent)
+        
+        model_path = f'{args.logdir}/pretrain/{args.model}_model_T0.pth'
+        lifelong_agent_path = f'{args.logdir}/pretrain/{args.model}_synapses_T0.pth'
 
-    elif args.do == 'finetune':
-        assert len(config['dataset']['train']['clean']) == len(
-            config['dataset']['train']['noisy']) and len(config['dataset']['train']['clean']) >= 1
-        train_all(args, config, model)
+        if os.path.exists(model_path) and os.path.exists(lifelong_agent_path):
+            print(f'[Runner] - pretrain model has already existed!')
+            model.load_state_dict(torch.load(model_path))
+            lifelong_agent = LifeLongAgent(model, strategies=config['train']['strategies'])
+            lifelong_agent.load_state_dict(torch.load(lifelong_agent_path))
+        else:
+            print(f'[Runner] - run pretrain process!')
+            lifelong_agent = LifeLongAgent(
+                model, strategies=config['train']['strategies'])
+            pretrain(args, config, model, lifelong_agent)
 
+        print(f'[Runner] - run adaptation process!')
+        if args.do == 'seril':
+            args.logdir = f'{args.logdir}/seril'
+            adapt(args, config, model, lifelong_agent)
+
+        elif args.do == 'finetune':
+            args.logdir = f'{args.logdir}/finetune'
+            adapt(args, config, model)
+
+    if args.do == 'test':
+        pass
 
 if __name__ == "__main__":
     main()

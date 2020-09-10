@@ -4,6 +4,6 @@
 **/result/**
 **/log/**
 **/finetune_log/**
-**/seril_log/**
+**/seril_log*/**
 *.ipynb
 .gitignore

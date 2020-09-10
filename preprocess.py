@@ -3,25 +3,6 @@ from torchaudio.functional import magphase
 from functools import partial
 import torch
 
-def adnoise(speech_data, noise_data, SNR):
-    noise_length = noise_data.shape[0]
-    speech_length = speech_data.shape[0]
-
-    if noise_length - speech_length <= 0:
-        dup_num = np.ceil(speech_length / noise_length).astype(int)
-        noise_data = np.tile(noise_data, dup_num)
-        noise_length = noise_data.shape[0]
-    
-    start = np.random.randint(0, noise_length - speech_length, 1)[0]
-    noise_data = noise_data[start : start + speech_length]
-
-    SNR_exp = 10.0**(SNR / 10.0)
-    speech_var = np.dot(speech_data, speech_data)
-    noise_var = np.dot(noise_data, noise_data)
-    scaler = np.sqrt(speech_var / (SNR_exp * noise_var))
-
-    return speech_data + scaler * noise_data
-
 
 class OnlinePreprocessor(torch.nn.Module):
     def __init__(self, sample_rate=16000, win_len=512, hop_len=256, n_freq=257, feat_list=None, **kwargs):
