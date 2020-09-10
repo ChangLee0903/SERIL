@@ -1,34 +1,73 @@
 import argparse
+import yaml
+import os
+import shutil
+import numpy as np
+import random
+
+import torch
+from train import train_all
+from util import feat_list
+from regularizer import LifeLongAgent
+from preprocess import OnlinePreprocessor
+from model import LSTM, IRM, Residual
 from asteroid.losses.sdr import SingleSrcNegSDR
-loss_func = SingleSrcNegSDR(
-    sdr_type="sisdr", zero_mean=False, reduction='mean')
 
-parser = argparse.ArgumentParser(
-    description='Argument Parser for SERIL project.')
-parser.add_argument('--name', required=True,
-                    help='Name of current experiment.')
-parser.add_argument('--noisy_trainset', nargs='+', required=True,
-                    help='Noisy utterances for training in different environments.')
-parser.add_argument('--clean_trainset', nargs='+', required=True,
-                    help='Clean utterances correspond to the training noisy utterances.')
-parser.add_argument('--noisy_validset', nargs='+', required=True,
-                    help='Noisy utterances for testing in different environments.')
-parser.add_argument('--clean_validset', nargs='+', required=True,
-                    help='Clean utterances correspond to the testing noisy utterances.')
-parser.add_argument('--n_jobs', default=1, type=int)
 
-# Options
-parser.add_argument('--config', default='config/downstream.yaml',
-                    help='Path to downstream experiment config.', required=False)
-parser.add_argument('--expdir', default='result',
-                    help='Path to store experiment result, if empty then default is used.', required=False)
-parser.add_argument('--seed', default=1337, type=int,
-                    help='Random seed for reproducable results.', required=False)
-parser.add_argument('--gpu', default='0', action='store_true',
-                    help='Assigning GPU id.')
+def main():
+    parser = argparse.ArgumentParser(
+        description='Argument Parser for SERIL.')
+    parser.add_argument('--logdir', default='log',
+                        help='Name of current experiment.')
+    parser.add_argument('--n_jobs', default=2, type=int)
+    parser.add_argument(
+        '--do', choices=['seril', 'finetune', 'test'], default='seril', type=str)
+    parser.add_argument(
+        '--model', choices=['LSTM', 'Residual', 'IRM'], default='LSTM', type=str)
 
-# parse
-args = parser.parse_args()
-config = yaml.load(open(args.config, 'r'), Loader=yaml.FullLoader)
+    # Options
+    parser.add_argument(
+        '--config', default='config/config.yaml', required=False)
+    parser.add_argument('--seed', default=1126, type=int,
+                        help='Random seed for reproducable results.', required=False)
+    parser.add_argument('--gpu', default='2', type=int,
+                        help='Assigning GPU id.')
+    args = parser.parse_args()
 
-# return args, config
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+
+    # clean log files
+    if os.path.exists(args.logdir):
+        shutil.rmtree(args.logdir)
+    os.makedirs(args.logdir)
+
+    # load configure
+    config = yaml.load(open(args.config, 'r'), Loader=yaml.FullLoader)
+
+    if config['train']['loss'] == 'sisdr':
+        loss_func = SingleSrcNegSDR("sisdr", zero_mean=False,
+                                    reduction='mean')
+
+    torch.cuda.set_device(args.gpu)
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    preprocessor = OnlinePreprocessor(feat_list=feat_list).to(device)
+    model = eval(f'{args.model}(loss_func, preprocessor)').to(device)
+
+    if args.do == 'seril':
+        assert len(config['dataset']['train']['clean']) == len(
+            config['dataset']['train']['noisy']) and len(config['dataset']['train']['clean']) >= 1
+        lifelong_agent = LifeLongAgent(
+            model, strategies=config['train']['strategies'])
+        train_all(args, config, model, lifelong_agent)
+
+    elif args.do == 'finetune':
+        assert len(config['dataset']['train']['clean']) == len(
+            config['dataset']['train']['noisy']) and len(config['dataset']['train']['clean']) >= 1
+        train_all(args, config, model)
+
+
+if __name__ == "__main__":
+    main()

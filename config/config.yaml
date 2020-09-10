@@ -4,33 +4,35 @@ preprocessor:
   
 train:
   learning_rate: 1e-3                                # Learning rate for opt: ['4e-3' for fine-tune, '4e-3' for regualr downstream task training]
-  epochs: 300                                        # total steps for training, a step is a batch of update
+  pretrain_epochs: 100                               # total steps for training, a step is a batch of update
+  adapt_epochs: 30                                   # total steps for training, a step is a batch of update  
   batch_size: 32
-  log_step: 100                                      # log training status every this amount of training steps
+  log_step: 50                                       # log training status every this amount of training steps
   eval_step: 500                                     # evaluate every this amount of training steps
   max_keep: 10                                       # maximum number of model ckpt to keep during training
-  loss: si_sdr                                       # Scale-Invariant Signal Distortion Ratio
+  loss: sisdr                                        # Scale-Invariant Signal Distortion Ratio
   gradient_clipping: 1e-0                            # Maximum gradient norm
+  lambda: 0.01
   strategies:
     ewc: 0.5
     si: 0.5
  
 eval:
-  batch_size: 12
-  n_jobs: 1
+  batch_size: 32
+  n_jobs: 2
   metrics: [pesq_nb, stoi]
 
 dataset:
   train: 
     noisy:
-      ['../train/noisy_T0']
+      ['../train/noisy_T0', '../train/noisy_T1', '../train/noisy_T2', '../train/noisy_T3', '../train/noisy_T4']
     clean:
-      ['../train/clean_T0']
+      ['../train/clean_T0', '../train/clean_T1', '../train/clean_T2', '../train/clean_T3', '../train/clean_T4']
   dev: 
     noisy:
-      ['../dev/noisy_T0']
+      ['../dev/noisy_T0', '../dev/noisy_T1', '../dev/noisy_T2', '../dev/noisy_T3', '../dev/noisy_T4']
     clean:
-      ['../dev/clean_T0']
+      ['../dev/clean_T0', '../dev/clean_T1', '../dev/clean_T2', '../dev/clean_T3', '../dev/clean_T4']
   test: [
     '/home/leo/d/speech-enhancement/DNS-Challenge/datasets/test_set/synthetic/no_reverb/',
   ]

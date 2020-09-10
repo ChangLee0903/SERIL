@@ -1,5 +1,4 @@
 import os
-import numpy as np
 from torchaudio.functional import magphase
 from functools import partial
 import torch

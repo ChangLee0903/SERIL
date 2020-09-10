@@ -2,9 +2,10 @@ import torch
 import numpy as np
 
 
-class LifeLongRegularizer(torch.nn.Module):
-    def __init__(self, model, beta=0.7, strategies = {}):
-        super(LifeLongRegularizer, self).__init__()
+class LifeLongAgent(torch.nn.Module):
+    def __init__(self, model, strategies={}):
+        super(LifeLongAgent, self).__init__()
+        assert len(strategies)
         self.regs = {}
         self.strategies = strategies
         if 'ewc' in self.strategies:
@@ -12,26 +13,27 @@ class LifeLongRegularizer(torch.nn.Module):
         if 'si' in self.strategies:
             self.regs['si'] = SynapticIntelligence(model)
 
-    def update_weights(self, model, dataset):
+    def update_weights(self, model, dataloader):
         if 'ewc' in self.strategies:
-            self.regs['ewc'].set_weights(model, dataset)
+            self.regs['ewc'].set_weights(model, dataloader)
         if 'si' in self.strategies:
             self.regs['si'].set_weights(model)
-       
+        self.task_params = {n: p.clone().detach() for n, p in model.named_parameters() if p.requires_grad}
+        
     def save(self, name):
-        torch.save(self.regs, name)
+        torch.save(self, name)
 
     def load(self, name, device=torch.device('cpu')):
-        self.task_import = torch.load(name, map_location=device)
+        self.regs = torch.load(name, map_location=device)
         self.set_norm()
 
     def forward(self, model):
         reg = 0
-        if not len(self.strategies):
-            for n, p in model.named_parameters():
-                if p.requires_grad:
-                    weight = sum([self.regs[s].weights[n] * self.strategies[s] for s in self.strategies])
-                    reg += (weight * (p - self.task_param[n]) ** 2).sum()
+        for n, p in model.named_parameters():
+            if p.requires_grad:
+                weight = sum([self.regs[s].weights[n] *
+                                self.strategies[s] for s in self.strategies])
+                reg += (weight * (p - self.task_params[n]).pow(2)).sum()
         return reg
 
 
@@ -54,41 +56,43 @@ class BaseSynapses(torch.nn.Module):
             self.normalize()
 
     def normalize(self):
-        norm = sum([torch.dot(self.weights[n], self.weights[n])
-                    for n in self.weights]) ** 0.5
+        norm = sum([self.weights[n].pow(2).sum() for n in self.weights]).sqrt()
         self.weights = {n: self.weights[n] / norm for n in self.weights}
 
 
 class ElasticWeightConsolidation(BaseSynapses):
     def __init__(self, alpha=0.7, isNormalize=True):
-        super(ElasticWeightConsolidation).__init__(alpha, isNormalize)
+        super(ElasticWeightConsolidation, self).__init__(alpha, isNormalize)
 
-    def set_weights(self, model, dataset, batch_size=1):
+    def set_weights(self, model, dataloader):
         device = next(model.parameters()).device
-        dataloader = torch.utils.get_data_loader(dataset, batch_size)
         weights = {n: p.data.clone().zero_()
                    for n, p in model.named_parameters() if p.requires_grad}
+        count = 0
 
-        for _, (cln_audio, niy_audio) in enumerate(dataloader):
-            cln_audio, niy_audio = cln_audio.to(device), niy_audio.to(device)
+        for (lengths, niy_audio, cln_audio) in dataloader:
+            lengths, niy_audio, cln_audio = lengths.to(
+                device), niy_audio.to(device), cln_audio.to(device)
+
+            batch_size = len(niy_audio)
+            count += batch_size
 
             model.zero_grad()
-            loss = model(niy_audio, cln_audio) * dataloader.batch_size
+            loss = model(lengths, niy_audio, cln_audio) * batch_size
             loss.backward()
 
             for n, p in model.named_parameters():
                 if p.requires_grad:
-                    weights[n].add_((p.grad.data**2) / len(dataloader))
+                    weights[n].add_((p.grad.data.pow(2)))
 
+        weights = {n: weights[n] / count for n in weights}
         self.update_weights(weights)
 
 
 class SynapticIntelligence(BaseSynapses):
-    def __init__(self, model, alpha = 0.7, isNormalize = True, eps = 1e-7):
-        super(SynapticIntelligence).__init__(alpha, isNormalize)
+    def __init__(self, model, alpha=0.7, isNormalize=True, eps=1e-7):
+        super(SynapticIntelligence, self).__init__(alpha, isNormalize)
         self.eps = eps
-        self.weights = {n: p.data.clone().zero_()
-                        for n, p in model.named_parameters() if p.requires_grad}
         self.init_params = {}
         self.p_old = {}
         self.Wk = {}
@@ -110,14 +114,18 @@ class SynapticIntelligence(BaseSynapses):
 
     def set_weights(self, model):
         device = next(model.parameters()).device
-        weights = {n: self.weights[n].clone() for n in self.weights}
+        if self.weights is None:
+            weights = {n: p.data.clone().zero_()
+                        for n, p in model.named_parameters() if p.requires_grad}
+        else:
+            weights = {n: self.weights[n].clone() for n in self.weights}
 
         for n, p in model.named_parameters():
             if p.requires_grad:
                 p_current = p.detach().clone()
                 p_change = p_current - self.init_params[n].to(device)
                 weights[n] += self.Wk[n].to(device) / \
-                    (p_change**2 + self.eps)
+                    (p_change.pow(2) + self.eps)
 
         self.update_weights(weights)
         self.reset(model)

@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 from dataset import SpeechDataset
 
 channel = 0
@@ -9,34 +10,27 @@ feat_list = [
 ]
 
 
-def save_model(self, save_type=None):
-    all_states = {
-        'Upstream': self.upstream_model.state_dict() if self.args.fine_tune else None,
-        'Downstream': self.downstream_model.state_dict(),
-        'Optimizer': self.optimizer.state_dict(),
-        'Global_step': self.global_step,
-        'Settings': {
-            'Config': self.config,
-            'Paras': self.args,
-        },
-    }
+def adnoise(speech_data, noise_data, SNR):
+    noise_length = noise_data.shape[0]
+    speech_length = speech_data.shape[0]
 
-    def check_ckpt_num(directory):
-        ckpts = glob.glob(f'{directory}/states-*.ckpt')
-        if len(ckpts) >= self.rconfig['max_keep']:
-            ckpts = sorted(ckpts, key=lambda pth: int(
-                pth.split('-')[-1].split('.')[0]))
-            for ckpt in ckpts[:len(ckpts) - self.rconfig['max_keep']]:
-                os.remove(ckpt)
+    if noise_length - speech_length <= 0:
+        dup_num = np.ceil(speech_length / noise_length).astype(int)
+        noise_data = np.tile(noise_data, dup_num)
+        noise_length = noise_data.shape[0]
 
-    save_dir = self.expdir if save_type is None else f'{self.expdir}/{save_type}'
-    os.makedirs(save_dir, exist_ok=True)
-    check_ckpt_num(save_dir)
-    model_path = f'{save_dir}/states-{self.global_step}.ckpt'
-    torch.save(all_states, model_path)
+    start = np.random.randint(0, noise_length - speech_length, 1)[0]
+    noise_data = noise_data[start: start + speech_length]
+
+    SNR_exp = 10.0**(SNR / 10.0)
+    speech_var = np.dot(speech_data, speech_data)
+    noise_var = np.dot(noise_data, noise_data)
+    scaler = np.sqrt(speech_var / (SNR_exp * noise_var))
+
+    return speech_data + scaler * noise_data
 
 
-def get_dataloader(args, noisy_list, clean_list, batch_size):
+def get_dataloader(n_jobs, noisy_list, clean_list, batch_size, shuffle=False):
     def collate_fn(samples):
         niy_samples = [s[0] for s in samples]
         cln_samples = [s[1] for s in samples]
@@ -49,6 +43,6 @@ def get_dataloader(args, noisy_list, clean_list, batch_size):
         return lengths, niy_samples.transpose(-1, -2).contiguous(), cln_samples.transpose(-1, -2).contiguous()
 
     dataloader = torch.utils.data.DataLoader(SpeechDataset(
-            noisy_list, clean_list), batch_size, collate_fn=collate_fn, num_workers=args.n_jobs, shuffle=True)
+        noisy_list, clean_list), batch_size, collate_fn=collate_fn, num_workers=n_jobs, shuffle=shuffle)
 
     return dataloader
