@@ -5,6 +5,11 @@ from pystoi import stoi
 import torch
 from joblib import Parallel, delayed
 from tqdm import tqdm
+from util import get_dataloader
+import os
+
+warnings.filterwarnings("ignore")
+OOM_RETRY_LIMIT = 10
 
 def sisdr_eval(src, tar, sr=16000, eps=1e-10):
     alpha = (src * tar).sum() / ((tar * tar).sum() + eps)
@@ -13,37 +18,46 @@ def sisdr_eval(src, tar, sr=16000, eps=1e-10):
     sisdr = 10 * ((ay * ay).sum() / norm + eps).log10()
     return sisdr.item()
 
+
 def pesq_nb_eval(src, tar, sr=16000):
     src, tar = src.numpy(), tar.numpy()
     assert src.ndim == 1 and tar.ndim == 1
     if np.allclose(src.sum(), 0.0, atol=1e-10) or np.allclose(tar.sum(), 0.0, atol=1e-10):
-        print(f'[Evaluation] wav values too small: src {src.sum()}, tar {tar.sum()}')
+        print(
+            f'[Evaluation] wav values too small: src {src.sum()}, tar {tar.sum()}')
     mos_lqo = pesq(sr, tar, src/np.abs(src).max(), 'nb')
     return mos_lqo
+
 
 def pesq_wb_eval(src, tar, sr=16000):
     src, tar = src.numpy(), tar.numpy()
     assert src.ndim == 1 and tar.ndim == 1
     if np.allclose(src.sum(), 0.0, atol=1e-10) or np.allclose(tar.sum(), 0.0, atol=1e-10):
-        print(f'[Evaluation] wav values too small: src {src.sum()}, tar {tar.sum()}')
+        print(
+            f'[Evaluation] wav values too small: src {src.sum()}, tar {tar.sum()}')
     mos_lqo = pesq(sr, tar, src, 'wb')
     return mos_lqo
 
+
 def pypesq_eval(src, tar, sr=16000):
     assert src.ndim == 1 and tar.ndim == 1
-    assert not np.allclose(src.sum(), 0.0, atol=1e-6) and not np.allclose(tar.sum(), 0.0, atol=1e-6)
+    assert not np.allclose(
+        src.sum(), 0.0, atol=1e-6) and not np.allclose(tar.sum(), 0.0, atol=1e-6)
     raw_pesq = pypesq(tar, src, sr)
     return raw_pesq
+
 
 def stoi_eval(src, tar, sr=16000):
     src, tar = src.numpy(), tar.numpy()
     assert src.ndim == 1 and tar.ndim == 1
     return stoi(tar, src, sr, extended=False)
 
+
 def estoi_eval(src, tar, sr=16000):
     src, tar = src.numpy(), tar.numpy()
     assert src.ndim == 1 and tar.ndim == 1
     return stoi(tar, src, sr, extended=True)
+
 
 def evaluate(args, config, dataloader, model):
     device = next(model.parameters()).device
@@ -106,3 +120,43 @@ def evaluate(args, config, dataloader, model):
     model.train()
     torch.cuda.empty_cache()
     return loss_avg, scores_avg
+
+
+def test(args, config):
+    torch.cuda.set_device(args.gpu)
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    save_dir = f'{args.logdir}/{args.mode}'
+    assert os.path.exists(save_dir)
+    task_num = len(config['dataset']['test']['noisy'])
+
+    model_list = []
+    
+    pretrain_model = torch.load(
+        f'{args.logdir}/pretrain/{args.model}_model_T0.pth')
+    for i in range(1, task_num):
+        model_list.append(torch.load(
+            f'{save_dir}/{args.model}_model_T{i}.pth'))
+    
+    if len(model_list) > 0:
+        results = [np.zeros((task_num, task_num))
+                            for m in config['eval']['metrics']]
+    
+    for Ti in range(task_num):
+        test_loader = get_dataloader(args.n_jobs, config['dataset']['test']['noisy'][Ti],
+                                     config['dataset']['test']['clean'][Ti], config['eval']['batch_size'])
+
+        _, score = evaluate(args, config, test_loader,
+                            pretrain_model.to(device))
+        for i in range(len(score)):
+            results[i][0, Ti] = score[i]
+            
+        for Mi in range(len(model_list)):
+            _, score = evaluate(args, config, test_loader,
+                                model_list[Mi].to(device))
+            for i in range(len(score)):
+                results[i][Mi+1, Ti] = score[i]
+
+    for i in range(len(config['eval']['metrics'])):
+        metric = config['eval']['metrics'][i]
+        np.savetxt(f'{args.logdir}/{metric}.csv', results[i], delimiter=",", fmt='%1.4f')

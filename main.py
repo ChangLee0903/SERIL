@@ -7,6 +7,7 @@ import random
 
 import torch
 from train import pretrain, adapt
+from evaluation import test
 from util import feat_list
 from regularizer import LifeLongAgent
 from preprocess import OnlinePreprocessor
@@ -21,7 +22,9 @@ def main():
                         help='Name of current experiment.')
     parser.add_argument('--n_jobs', default=2, type=int)
     parser.add_argument(
-        '--do', choices=['seril', 'finetune', 'test'], default='seril', type=str)
+        '--do', choices=['train', 'test'], default='train', type=str)
+    parser.add_argument(
+        '--mode', choices=['seril', 'finetune'], default='seril', type=str)
     parser.add_argument(
         '--model', choices=['LSTM', 'Residual', 'IRM'], default='LSTM', type=str)
     
@@ -48,11 +51,11 @@ def main():
         loss_func = SingleSrcNegSDR("sisdr", zero_mean=False,
                                     reduction='mean')
 
-    torch.cuda.set_device(args.gpu)
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
     
-    if args.do in ['seril', 'finetune']:
+    if args.do == 'train':
+        torch.cuda.set_device(args.gpu)
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
         assert len(config['dataset']['train']['clean']) == len(
             config['dataset']['train']['noisy']) and len(config['dataset']['train']['clean']) >= 1
         
@@ -73,16 +76,14 @@ def main():
             pretrain(args, config, model, lifelong_agent)
 
         print(f'[Runner] - run adaptation process!')
-        if args.do == 'seril':
-            args.logdir = f'{args.logdir}/seril'
+        args.logdir = f'{args.logdir}/{args.mode}'
+        if args.mode == 'seril':
             adapt(args, config, model, lifelong_agent)
-
-        elif args.do == 'finetune':
-            args.logdir = f'{args.logdir}/finetune'
+        elif args.mode == 'finetune':
             adapt(args, config, model)
 
     if args.do == 'test':
-        pass
+        test(args, config)
 
 if __name__ == "__main__":
     main()

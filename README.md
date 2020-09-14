@@ -45,19 +45,24 @@ pip install -r requirements.txt
 
 2. Train the networks for each domain sequentially:
 
-   Note that the utterances of first domain will be taken as the training data of pretrain task which will train much longer than other domains.
+   Note that the utterances of first domain will be taken as the training data of pretrain task which will train much longer than other domains, and both <code>--mode finetune</code> and <code>--mode seril</code> will share the same pretrain model.
     - Check log directory
-    - Choose seril/naive fine-tuning, both of them will share the same pretrain model.
+    - Choose seril/naive fine-tuning mode
     - Run:
-   <pre><code>python main.py --logdir log --do finetuning
-   python main.py --logdir log --do seril
+   <pre><code>python main.py --logdir log --do train --mode finetune
+   python main.py --logdir log --do train --mode seril
    </code></pre>
  
 3. Inference:
-    - Prepare testing noisy wav list, e.g. ts_noisy_list.txt 
-    - Run:
-<pre><code>python main.py --mode test --test_noisy_list ts_noisy_list.txt --test_iter 100000</code></pre>
 
+    Make sure your <code>--logdir log</code> setting are the same with training steps.    
+    - Check log directory
+    - Choose seril/naive fine-tuning mode
+    - Run:
+    <pre><code>python main.py --logdir log --do test --mode finetune
+    python main.py --logdir log --do test --mode seril</code></pre>
+    
+    
 ## Citation
 If you find the code helpful in your research, please do consider cite us!
 ```bash

@@ -5,7 +5,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 import math
 from util import get_dataloader
-from eval import evaluate
+from evaluation import evaluate
 
 warnings.filterwarnings("ignore")
 OOM_RETRY_LIMIT = 10

@@ -33,9 +33,11 @@ dataset:
       ['../dev/noisy_T0', '../dev/noisy_T1', '../dev/noisy_T2', '../dev/noisy_T3', '../dev/noisy_T4']
     clean:
       ['../dev/clean_T0', '../dev/clean_T1', '../dev/clean_T2', '../dev/clean_T3', '../dev/clean_T4']
-  test: [
-    '/home/leo/d/speech-enhancement/DNS-Challenge/datasets/test_set/synthetic/no_reverb/',
-  ]
+  test: 
+    noisy:
+      ['../dev/noisy_T0', '../dev/noisy_T1', '../dev/noisy_T2', '../dev/noisy_T3', '../dev/noisy_T4']
+    clean:
+      ['../dev/clean_T0', '../dev/clean_T1', '../dev/clean_T2', '../dev/clean_T3', '../dev/clean_T4']
     
 model:
   input_size: 257, 
