@@ -51,9 +51,7 @@ def main():
     torch.cuda.set_device(args.gpu)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    preprocessor = OnlinePreprocessor(feat_list=feat_list).to(device)
-    model = eval(f'{args.model}(loss_func, preprocessor)').to(device)
-
+    
     if args.do in ['seril', 'finetune']:
         assert len(config['dataset']['train']['clean']) == len(
             config['dataset']['train']['noisy']) and len(config['dataset']['train']['clean']) >= 1
@@ -63,11 +61,13 @@ def main():
 
         if os.path.exists(model_path) and os.path.exists(lifelong_agent_path):
             print(f'[Runner] - pretrain model has already existed!')
-            model.load_state_dict(torch.load(model_path))
-            lifelong_agent = LifeLongAgent(model, strategies=config['train']['strategies'])
-            lifelong_agent.load_state_dict(torch.load(lifelong_agent_path))
+            model = torch.load(model_path).to(device)
+            lifelong_agent = torch.load(lifelong_agent_path).to(device)
+            
         else:
             print(f'[Runner] - run pretrain process!')
+            preprocessor = OnlinePreprocessor(feat_list=feat_list).to(device)
+            model = eval(f'{args.model}')(loss_func, preprocessor, **config['model']).to(device)
             lifelong_agent = LifeLongAgent(
                 model, strategies=config['train']['strategies'])
             pretrain(args, config, model, lifelong_agent)

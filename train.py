@@ -23,10 +23,9 @@ def pretrain(args, config, model, lifelong_agent):
     train(args, config, log, train_loader,
           dev_loader, model, lifelong_agent)
 
-    torch.save(model.state_dict(), f'{save_dir}/{args.model}_model_T0.pth')
+    torch.save(model, f'{save_dir}/{args.model}_model_T0.pth')
     lifelong_agent.update_weights(model, train_loader)
-    torch.save(lifelong_agent.state_dict(),
-               f'{save_dir}/{args.model}_synapses_T0.pth')
+    torch.save(lifelong_agent, f'{save_dir}/{args.model}_synapses_T0.pth')
     log.close()
 
 def adapt(args, config, model, lifelong_agent=None):
@@ -42,12 +41,11 @@ def adapt(args, config, model, lifelong_agent=None):
 
         train(args, config, log, train_loader,
               dev_loader, model, lifelong_agent)
-        torch.save(model.state_dict(), f'{save_dir}/{args.model}_model_T{i}.pth')
+        torch.save(model, f'{save_dir}/{args.model}_model_T{i}.pth')
 
         if lifelong_agent is not None:
             lifelong_agent.update_weights(model, train_loader)
-            torch.save(lifelong_agent.state_dict(),
-                       f'{save_dir}/{args.model}_synapses_T{i}.pth')
+            torch.save(lifelong_agent, f'{save_dir}/{args.model}_synapses_T{i}.pth')
     log.close()
 
 
@@ -77,7 +75,6 @@ def train(args, config, log, train_loader, dev_loader, model, lifelong_agent=Non
             try:
                 lengths, niy_audio, cln_audio = lengths.to(
                     device), niy_audio.to(device), cln_audio.to(device)
-                
                 # compute loss
                 loss = model(lengths, niy_audio, cln_audio)
                 loss_sum += loss.item()

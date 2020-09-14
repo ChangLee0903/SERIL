@@ -5,7 +5,7 @@ from functools import partial
 MAX_POSITIONS_LEN = 16000 * 50
 
 class SpecBase(nn.Module):
-    def __init__(self, loss_func, preprocessor, input_size=257, hidden_size=257, num_layers=3, bidirectional=False):
+    def __init__(self, loss_func, preprocessor, input_size, hidden_size, num_layers, bidirectional):
         super(SpecBase, self).__init__()
         self.bidirectional = bidirectional
         self.lstm = nn.LSTM(input_size=input_size, hidden_size=hidden_size,
@@ -51,8 +51,8 @@ class SpecBase(nn.Module):
                               tar_linears.flatten(start_dim=1).contiguous())
 
 class LSTM(SpecBase):
-    def __init__(self, loss_func, preprocessor, input_size=257, hidden_size=257, num_layers=3, bidirectional=False):
-        super(LSTM, self).__init__(loss_func, preprocessor, input_size=257, hidden_size=257, num_layers=3, bidirectional=False)
+    def __init__(self, loss_func, preprocessor, input_size, hidden_size, num_layers, bidirectional):
+        super(LSTM, self).__init__(loss_func, preprocessor, input_size, hidden_size, num_layers, bidirectional)
         
     def transform(self, src, tar=None):
         _, src_linears, src_phases = self.preprocessor(src)
@@ -67,8 +67,8 @@ class LSTM(SpecBase):
             return pred_linears, src_phases
 
 class IRM(SpecBase):
-    def __init__(self, loss_func, preprocessor, input_size=257, hidden_size=257, num_layers=3, bidirectional=False):
-        super(IRM, self).__init__(loss_func, preprocessor, input_size=257, hidden_size=257, num_layers=3, bidirectional=False)
+    def __init__(self, loss_func, preprocessor, input_size, hidden_size, num_layers, bidirectional):
+        super(IRM, self).__init__(loss_func, preprocessor, input_size, hidden_size, num_layers, bidirectional)
         self.scaling_layer = nn.Sequential(
             nn.Linear(hidden_size, input_size), nn.Sigmoid())
   
@@ -85,8 +85,8 @@ class IRM(SpecBase):
             return pred_linears, src_phases
 
 class Residual(SpecBase):
-    def __init__(self, loss_func, preprocessor, input_size=257, hidden_size=257, num_layers=3, bidirectional=False):
-        super(Residual, self).__init__(loss_func, preprocessor, input_size=257, hidden_size=257, num_layers=3, bidirectional=False)
+    def __init__(self, loss_func, preprocessor, input_size, hidden_size, num_layers, bidirectional):
+        super(Residual, self).__init__(loss_func, preprocessor, input_size, hidden_size, num_layers, bidirectional)
         
     def transform(self, src, tar=None):
         _, src_linears, src_phases = self.preprocessor(src)
