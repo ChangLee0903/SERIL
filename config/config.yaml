@@ -35,9 +35,9 @@ dataset:
       ['../dev/clean_T0', '../dev/clean_T1', '../dev/clean_T2', '../dev/clean_T3', '../dev/clean_T4']
   test: 
     noisy:
-      ['../dev/noisy_T0', '../dev/noisy_T1', '../dev/noisy_T2', '../dev/noisy_T3', '../dev/noisy_T4']
+      ['../test/noisy_T0', '../test/noisy_T1', '../test/noisy_T2', '../test/noisy_T3', '../test/noisy_T4']
     clean:
-      ['../dev/clean_T0', '../dev/clean_T1', '../dev/clean_T2', '../dev/clean_T3', '../dev/clean_T4']
+      ['../test/clean_T0', '../test/clean_T1', '../test/clean_T2', '../test/clean_T3', '../test/clean_T4']
     
 model:
   input_size: 257, 
