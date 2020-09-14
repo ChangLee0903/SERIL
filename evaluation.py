@@ -8,7 +8,6 @@ from tqdm import tqdm
 from util import get_dataloader
 import os
 
-warnings.filterwarnings("ignore")
 OOM_RETRY_LIMIT = 10
 
 def sisdr_eval(src, tar, sr=16000, eps=1e-10):
@@ -159,4 +158,4 @@ def test(args, config):
 
     for i in range(len(config['eval']['metrics'])):
         metric = config['eval']['metrics'][i]
-        np.savetxt(f'{args.logdir}/{metric}.csv', results[i], delimiter=",", fmt='%1.4f')
+        np.savetxt(f'{args.logdir}/{args.mode}_{metric}.csv', results[i], delimiter=",", fmt='%1.4f')

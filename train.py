@@ -40,7 +40,7 @@ def adapt(args, config, model, lifelong_agent=None):
                                     config['dataset']['dev']['clean'][i], config['eval']['batch_size'])
 
         train(args, config, log, train_loader,
-              dev_loader, model, lifelong_agent)
+              dev_loader, model, lifelong_agent, True)
         torch.save(model, f'{save_dir}/{args.model}_model_T{i}.pth')
 
         if lifelong_agent is not None:
@@ -49,9 +49,7 @@ def adapt(args, config, model, lifelong_agent=None):
     log.close()
 
 
-def train(args, config, log, train_loader, dev_loader, model, lifelong_agent=None):
-    IsAdapt = lifelong_agent is not None and any(
-        [lifelong_agent.regs[n].weights is not None for n in lifelong_agent.regs])
+def train(args, config, log, train_loader, dev_loader, model, lifelong_agent=None, IsAdapt=False):
     # metrics_best = torch.zeros(len(config['eval']['metrics']))
     device = next(model.parameters()).device
 
@@ -78,7 +76,7 @@ def train(args, config, log, train_loader, dev_loader, model, lifelong_agent=Non
                 # compute loss
                 loss = model(lengths, niy_audio, cln_audio)
                 loss_sum += loss.item()
-                if IsAdapt:
+                if IsAdapt and lifelong_agent is not None:
                     loss += config['train']['lambda'] * \
                         lifelong_agent(model)
                 loss.backward()

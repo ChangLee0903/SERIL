@@ -20,13 +20,6 @@ class LifeLongAgent(torch.nn.Module):
             self.regs['si'].set_weights(model)
         self.task_params = {n: p.clone().detach() for n, p in model.named_parameters() if p.requires_grad}
         
-    def save(self, name):
-        torch.save(self, name)
-
-    def load(self, name, device=torch.device('cpu')):
-        self.regs = torch.load(name, map_location=device)
-        self.set_norm()
-
     def forward(self, model):
         reg = 0
         for n, p in model.named_parameters():

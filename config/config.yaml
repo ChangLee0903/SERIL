@@ -12,7 +12,7 @@ train:
   max_keep: 10                                       # maximum number of model ckpt to keep during training
   loss: sisdr                                        # Scale-Invariant Signal Distortion Ratio
   gradient_clipping: 1e-0                            # Maximum gradient norm
-  lambda: 0.01
+  lambda: 10
   strategies:
     ewc: 0.5
     si: 0.5
