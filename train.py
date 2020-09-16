@@ -118,7 +118,6 @@ def train(args, config, log, train_loader, dev_loader, model, lifelong_agent=Non
                     #     metrics_best.data = torch.max(
                     #         scores, metrics_best).data
                     #     save_dir = f'{args.logdir}/model'
-                    #     os.makedirs(save_dir, exist_ok=True)
                     #     torch.save(model.dict.state_dict(), f'{save_dir}/model_T0.pth')
 
             except RuntimeError as e:

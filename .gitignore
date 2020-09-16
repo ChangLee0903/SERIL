@@ -7,3 +7,4 @@
 **/seril_log*/**
 *.ipynb
 .gitignore
+test.py

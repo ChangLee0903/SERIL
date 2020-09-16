@@ -50,8 +50,6 @@ def main():
     if config['train']['loss'] == 'sisdr':
         loss_func = SingleSrcNegSDR("sisdr", zero_mean=False,
                                     reduction='mean')
-
-    
     if args.do == 'train':
         torch.cuda.set_device(args.gpu)
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -66,13 +64,13 @@ def main():
             print(f'[Runner] - pretrain model has already existed!')
             model = torch.load(model_path).to(device)
             lifelong_agent = torch.load(lifelong_agent_path).to(device)
-            
+            lifelong_agent.load_config(**config['train']['strategies'])
+
         else:
             print(f'[Runner] - run pretrain process!')
             preprocessor = OnlinePreprocessor(feat_list=feat_list).to(device)
             model = eval(f'{args.model}')(loss_func, preprocessor, **config['model']).to(device)
-            lifelong_agent = LifeLongAgent(
-                model, strategies=config['train']['strategies'])
+            lifelong_agent = LifeLongAgent(model, **config['train']['strategies'])
             pretrain(args, config, model, lifelong_agent)
 
         print(f'[Runner] - run adaptation process!')

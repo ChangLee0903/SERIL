@@ -18,10 +18,10 @@ import csv
 
 
 space = {
-    'alpha_ewc': hp.choice('alpha_ewc', list(np.arange(0.05, 1.05, 0.05))),
-    'alpha_si': hp.choice('alpha_si', list(np.arange(0.05, 1.05, 0.05))),
-    'beta': hp.choice('beta', list(np.arange(0.05, 1.05, 0.05))),
-    'lambda': hp.choice('lambda', list(np.arange(0.01, 0.1, 0.01)) + list(np.arange(0.1, 1, 0.1)) + list(np.arange(1, 10, 1)))
+    'alpha_ewc': hp.choice('alpha_ewc', list(np.arange(0.1, 1.1, 0.1))),
+    'alpha_si': hp.choice('alpha_si', list(np.arange(0.1, 1.1, 0.1))),
+    'beta': hp.choice('beta', list(np.arange(0.1, 1.1, 0.1))),
+    'lambda': hp.choice('lambda', [0.1, 0.5, 1, 5, 10, 50, 100, 500, 1000, 5000])
 }
 
 
@@ -105,31 +105,33 @@ def run(args, config, model, lifelong_agent=None):
             loss_sum /= sample_num
 
             score += loss_sum
-    return score / len(config['dataset']['train']['noisy'])
+    score -= (loss_sum * 0.05)
+    return score / len(config['dataset']['train']['noisy']) 
 
 
 def objective(params):
     config['train']['lambda'] = params['lambda']
-    config['train']['strategies']['ewc'] = params['beta']
-    config['train']['strategies']['si'] = 1 - params['beta']
+    config['train']['strategies']['alpha']['ewc'] = params['alpha_ewc']
+    config['train']['strategies']['alpha']['si'] = params['alpha_si']
+    config['train']['strategies']['beta'] = params['beta']
 
     if config['train']['loss'] == 'sisdr':
         loss_func = SingleSrcNegSDR("sisdr", zero_mean=False,
                                     reduction='mean')
-
-    preprocessor = OnlinePreprocessor(feat_list=feat_list).to(device)
-    model = eval(f'{args.model}(loss_func, preprocessor)').to(device)
-
     model_path = f'{args.logdir}/pretrain/{args.model}_model_T0.pth'
     lifelong_agent_path = f'{args.logdir}/pretrain/{args.model}_synapses_T0.pth'
 
     model = torch.load(model_path)
     lifelong_agent = torch.load(lifelong_agent_path)
-    lifelong_agent.regs['ewc'].alpha = params['alpha_ewc']
-    lifelong_agent.regs['si'].alpha = params['alpha_si']
+    lifelong_agent.load_config(**config['train']['strategies'])
 
     loss = run(args, config, model, lifelong_agent)
-    writer.writerow([loss] + [params[n] for n in params])
+
+    csv_file = open(save_dir, 'a')
+    writer = csv.writer(csv_file)
+    writer.writerow(['{:.4f}'.format(loss)] + ['{:.2f}'.format(params[n]) for n in params])
+    csv_file.close()
+    
     return {'loss': loss, 'params': params, 'status': STATUS_OK}
 
 def main():
@@ -162,16 +164,17 @@ def main():
     torch.cuda.set_device(args.gpu)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    global writer
+    global writer, csv_file, save_dir
     save_dir = f'{args.logdir}/record.csv'
-    if os.path.exists(save_dir):
-        os.remove(save_dir)
-    writer = csv.writer(open(save_dir, 'a'))
+    
+    csv_file = open(save_dir, 'a')
+    writer = csv.writer(csv_file)
     writer.writerow(['loss'] + [n for n in space])
+    csv_file.close()
 
     trials = Trials()
     best = fmin(fn=objective, space=space, algo=tpe.suggest,
-                max_evals=300, trials=trials)
+                max_evals=1000, trials=trials)
     print(best)
 
 

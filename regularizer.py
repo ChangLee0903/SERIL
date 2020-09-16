@@ -3,20 +3,28 @@ import numpy as np
 
 
 class LifeLongAgent(torch.nn.Module):
-    def __init__(self, model, strategies={}):
+    def __init__(self, model, alpha, beta):
         super(LifeLongAgent, self).__init__()
-        assert len(strategies)
+        assert len(alpha)
         self.regs = {}
-        self.strategies = strategies
-        if 'ewc' in self.strategies:
-            self.regs['ewc'] = ElasticWeightConsolidation()
-        if 'si' in self.strategies:
-            self.regs['si'] = SynapticIntelligence(model)
+        self.load_config(alpha, beta, model)
+    
+    def load_config(self, alpha, beta, model=None):
+        self.alpha = alpha
+        self.beta = beta
+        if model is not None:
+            if 'ewc' in self.alpha:
+                self.regs['ewc'] = ElasticWeightConsolidation(alpha=self.alpha['ewc'])
+            if 'si' in self.alpha:
+                self.regs['si'] = SynapticIntelligence(model, alpha=self.alpha['si'])
+        else:
+            for n in self.regs:
+                self.regs[n].alpha = self.alpha[n]
 
     def update_weights(self, model, dataloader):
-        if 'ewc' in self.strategies:
+        if 'ewc' in self.alpha:
             self.regs['ewc'].set_weights(model, dataloader)
-        if 'si' in self.strategies:
+        if 'si' in self.alpha:
             self.regs['si'].set_weights(model)
         self.task_params = {n: p.clone().detach() for n, p in model.named_parameters() if p.requires_grad}
         
@@ -24,8 +32,7 @@ class LifeLongAgent(torch.nn.Module):
         reg = 0
         for n, p in model.named_parameters():
             if p.requires_grad:
-                weight = sum([self.regs[s].weights[n] *
-                                self.strategies[s] for s in self.strategies])
+                weight = self.beta * self.regs['ewc'].weights[n] + (1 - self.beta) * self.regs['ewc'].weights[n]
                 reg += (weight * (p - self.task_params[n]).pow(2)).sum()
         return reg
 

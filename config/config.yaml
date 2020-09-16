@@ -4,19 +4,21 @@ preprocessor:
   
 train:
   learning_rate: 1e-3                                # Learning rate for opt: ['4e-3' for fine-tune, '4e-3' for regualr downstream task training]
-  pretrain_epochs: 100                               # total steps for training, a step is a batch of update
-  adapt_epochs: 10                                   # total steps for training, a step is a batch of update  
+  pretrain_epochs: 150                               # total steps for training, a step is a batch of update
+  adapt_epochs: 30                                   # total steps for training, a step is a batch of update  
   batch_size: 32
   log_step: 50                                       # log training status every this amount of training steps
-  eval_step: 500                                     # evaluate every this amount of training steps
+  eval_step: 10000                                     # evaluate every this amount of training steps
   max_keep: 10                                       # maximum number of model ckpt to keep during training
   loss: sisdr                                        # Scale-Invariant Signal Distortion Ratio
-  gradient_clipping: 1e-0                            # Maximum gradient norm
-  lambda: 10
+  gradient_clipping: 1e+2                            # Maximum gradient norm
+  lambda: 0.2
   strategies:
-    ewc: 0.5
-    si: 0.5
- 
+    alpha:
+      ewc: 0.8
+      si: 0.4
+    beta: 0.3
+
 eval:
   batch_size: 32
   n_jobs: 2
@@ -25,22 +27,22 @@ eval:
 dataset:
   train: 
     noisy:
-      ['../train/noisy_T0', '../train/noisy_T1', '../train/noisy_T2', '../train/noisy_T3', '../train/noisy_T4']
+      ['../SERIL_data/train/noisy_T0', '../SERIL_data/train/noisy_T1', '../SERIL_data/train/noisy_T2', '../SERIL_data/train/noisy_T3', '../SERIL_data/train/noisy_T4']
     clean:
-      ['../train/clean_T0', '../train/clean_T1', '../train/clean_T2', '../train/clean_T3', '../train/clean_T4']
+      ['../SERIL_data/train/clean_T0', '../SERIL_data/train/clean_T1', '../SERIL_data/train/clean_T2', '../SERIL_data/train/clean_T3', '../SERIL_data/train/clean_T4']
   dev: 
     noisy:
-      ['../dev/noisy_T0', '../dev/noisy_T1', '../dev/noisy_T2', '../dev/noisy_T3', '../dev/noisy_T4']
+      ['../SERIL_data/dev/noisy_T0', '../SERIL_data/dev/noisy_T1', '../SERIL_data/dev/noisy_T2', '../SERIL_data/dev/noisy_T3', '../SERIL_data/dev/noisy_T4']
     clean:
-      ['../dev/clean_T0', '../dev/clean_T1', '../dev/clean_T2', '../dev/clean_T3', '../dev/clean_T4']
+      ['../SERIL_data/dev/clean_T0', '../SERIL_data/dev/clean_T1', '../SERIL_data/dev/clean_T2', '../SERIL_data/dev/clean_T3', '../SERIL_data/dev/clean_T4']
   test: 
     noisy:
-      ['../test/noisy_T0', '../test/noisy_T1', '../test/noisy_T2', '../test/noisy_T3', '../test/noisy_T4']
+      ['../SERIL_data/dev/noisy_T0', '../SERIL_data/dev/noisy_T1', '../SERIL_data/dev/noisy_T2', '../SERIL_data/dev/noisy_T3', '../SERIL_data/dev/noisy_T4']
     clean:
-      ['../test/clean_T0', '../test/clean_T1', '../test/clean_T2', '../test/clean_T3', '../test/clean_T4']
+      ['../SERIL_data/dev/clean_T0', '../SERIL_data/dev/clean_T1', '../SERIL_data/dev/clean_T2', '../SERIL_data/dev/clean_T3', '../SERIL_data/dev/clean_T4']
     
 model:
-  input_size: 257, 
-  hidden_size: 257, 
-  num_layers: 3, 
+  input_size: 257
+  hidden_size: 257 
+  num_layers: 3
   bidirectional: False
