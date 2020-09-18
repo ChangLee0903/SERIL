@@ -8,16 +8,16 @@ train:
   adapt_epochs: 30                                   # total steps for training, a step is a batch of update  
   batch_size: 32
   log_step: 50                                       # log training status every this amount of training steps
-  eval_step: 10000                                     # evaluate every this amount of training steps
+  eval_step: 1000                                    # evaluate every this amount of training steps
   max_keep: 10                                       # maximum number of model ckpt to keep during training
   loss: sisdr                                        # Scale-Invariant Signal Distortion Ratio
   gradient_clipping: 1e+2                            # Maximum gradient norm
-  lambda: 0.2
+  lambda: 5000
   strategies:
     alpha:
-      ewc: 0.8
-      si: 0.4
-    beta: 0.3
+      ewc: 0.5
+      si: 0.3
+    beta: 0.6
 
 eval:
   batch_size: 32
@@ -37,9 +37,9 @@ dataset:
       ['../SERIL_data/dev/clean_T0', '../SERIL_data/dev/clean_T1', '../SERIL_data/dev/clean_T2', '../SERIL_data/dev/clean_T3', '../SERIL_data/dev/clean_T4']
   test: 
     noisy:
-      ['../SERIL_data/dev/noisy_T0', '../SERIL_data/dev/noisy_T1', '../SERIL_data/dev/noisy_T2', '../SERIL_data/dev/noisy_T3', '../SERIL_data/dev/noisy_T4']
+      ['../SERIL_data/test/noisy_T0', '../SERIL_data/test/noisy_T1', '../SERIL_data/test/noisy_T2', '../SERIL_data/test/noisy_T3', '../SERIL_data/test/noisy_T4']
     clean:
-      ['../SERIL_data/dev/clean_T0', '../SERIL_data/dev/clean_T1', '../SERIL_data/dev/clean_T2', '../SERIL_data/dev/clean_T3', '../SERIL_data/dev/clean_T4']
+      ['../SERIL_data/test/clean_T0', '../SERIL_data/test/clean_T1', '../SERIL_data/test/clean_T2', '../SERIL_data/test/clean_T3', '../SERIL_data/test/clean_T4']
     
 model:
   input_size: 257
