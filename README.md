@@ -55,7 +55,7 @@ pip install -r requirements.txt
  
 3. Inference:
 
-    Make sure your <code>--logdir log</code> setting are the same with the training step.    
+    Make sure your <code>--logdir log</code> setting is the same with the training step.    
     - Check log directory
     - Choose seril/naive fine-tuning mode
     - Run:
